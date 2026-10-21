@@ -153,24 +153,30 @@ describe("createUsageProvider", () => {
     expect(await mock.prompts[0]).toEqual([]);
   });
 
-  test("enables the usage endpoint without changing the parent environment", async () => {
+  test("enables the usage endpoint without telemetry or changing the parent environment", async () => {
     const previousFlag = process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
     const previousMarker = process.env.CLAUDE_BRIDGE_USAGE_TEST;
+    const previousTelemetry = process.env.DISABLE_TELEMETRY;
     process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
     process.env.CLAUDE_BRIDGE_USAGE_TEST = "preserved";
+    process.env.DISABLE_TELEMETRY = "0";
     try {
       const mock = mockProvider();
       await mock.provider.fetchUsage({}, {});
       const env = mock.calls[0]!.options!.env!;
       expect(env).not.toBe(process.env);
       expect(env).not.toHaveProperty("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC");
+      expect(env.DISABLE_TELEMETRY).toBe("1");
       expect(env.CLAUDE_BRIDGE_USAGE_TEST).toBe("preserved");
       expect(process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe("1");
+      expect(process.env.DISABLE_TELEMETRY).toBe("0");
     } finally {
       if (previousFlag === undefined) delete process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
       else process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = previousFlag;
       if (previousMarker === undefined) delete process.env.CLAUDE_BRIDGE_USAGE_TEST;
       else process.env.CLAUDE_BRIDGE_USAGE_TEST = previousMarker;
+      if (previousTelemetry === undefined) delete process.env.DISABLE_TELEMETRY;
+      else process.env.DISABLE_TELEMETRY = previousTelemetry;
     }
   });
 

@@ -108,6 +108,8 @@ export function createUsageProvider(runtime: BridgeRuntime): UsageProviderLike {
         // This flag also disables Claude Code's usage endpoint; only this query needs it.
         const env = { ...process.env };
         delete env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
+        // Keep telemetry disabled when enabling the usage endpoint.
+        env.DISABLE_TELEMETRY = "1";
         // An independent query avoids interfering with an active model stream.
         q = runtime.queryFn({
           prompt: noInput(),

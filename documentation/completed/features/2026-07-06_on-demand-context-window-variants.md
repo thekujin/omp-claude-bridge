@@ -3,6 +3,8 @@
 **Status**: Complete
 **Agent Lead**: 🏗️/⚙️
 
+> Historical implementation record for version 0.8.0, not current product documentation. Version 0.9.0 replaces this variant scheme with one entry per catalog model and model-specific context windows. See [the current model reference](../../../README.md#models).
+
 ## Plan
 
 ### Objective

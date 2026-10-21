@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-21
+
+### Added
+- Claude Opus 5.5, Opus 5, Sonnet 5.5, and Haiku 5.5 in the hardcoded model catalog.
+
+### Changed
+- Fable 5 now requests its `[1m]` runtime by default.
+- Model registration uses one entry per catalog model with model-specific context windows instead of configurable context-window variants.
+- Ported the newer modular provider implementation and restored `@earendil-works/*` imports for OMP's load-time compatibility rewriting.
+
+### Removed
+- Removed the AskClaude delegation tool and its configuration.
+- Removed `provider.contextWindow` and suffixed picker variants; `plan` and `longContextExtraUsage` still control the older models' 1M runtime requests.
+
 ## [0.8.1] - 2026-07-07
 
 ### Fixed

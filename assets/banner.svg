@@ -61,7 +61,7 @@
   <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#cbd5e1">
     <g transform="translate(452,224)">
       <rect x="0" y="0" width="132" height="30" rx="15" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.12"/>
-      <text x="66" y="20" text-anchor="middle">AskClaude tool</text>
+      <text x="66" y="20" text-anchor="middle">Native tools</text>
     </g>
     <g transform="translate(596,224)">
       <rect x="0" y="0" width="150" height="30" rx="15" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.12"/>

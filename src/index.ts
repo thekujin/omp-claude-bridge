@@ -11,6 +11,11 @@ import { loadConfig } from "./config.js";
 import { createRuntime } from "./runtime.js";
 import { createStreamClaudeAgentSdk } from "./provider.js";
 import { toPromptArray } from "./prompt.js";
+import {
+  createUsageProvider,
+  refreshUsageAfterTurn,
+  type UsageProviderLike,
+} from "./usage-provider.js";
 
 export default function (pi: ExtensionAPI) {
   process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
@@ -46,6 +51,10 @@ export default function (pi: ExtensionAPI) {
     clearSession("session_start");
   });
   pi.on("session_shutdown", () => clearSession("session_shutdown"));
+  // session_stop is awaited in print/JSON as well as TUI; compat typings predate it.
+  (pi as ExtensionAPI & {
+    on(event: "session_stop", handler: typeof refreshUsageAfterTurn): void;
+  }).on("session_stop", refreshUsageAfterTurn);
 
   // Compaction takeover skipped — let oh-my-pi's default compaction handle it.
   // See plan: Decision 1 in the port plan.
@@ -70,13 +79,15 @@ export default function (pi: ExtensionAPI) {
   // ACTIVE_STREAM_SIMPLE_KEY guard) left the shared ModelRegistry without
   // claude-bridge whenever a subagent session loaded this extension while the
   // guard was set — surfacing as "No API key for provider: claude-bridge".
+  // Host usage.ts supports usage; vendored ProviderConfig predates that contract.
   pi.registerProvider(PROVIDER_ID, {
     baseUrl: "claude-bridge",
     apiKey: "not-used",
     api: "claude-bridge",
     models: registeredModels,
     streamSimple: streamClaudeAgentSdk,
-  });
+    usage: createUsageProvider(runtime),
+  } as Parameters<ExtensionAPI["registerProvider"]>[1] & { usage: UsageProviderLike });
 
   // Returned for testability (index.test.ts inspects lifecycle effects). oh-my-pi
   // ignores the return value of an extension entry.

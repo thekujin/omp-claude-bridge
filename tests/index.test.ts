@@ -74,6 +74,14 @@ describe("extension registration", () => {
       expect(entry.id).toBe(PROVIDER_ID);
       expect(entry.config.api).toBe("claude-bridge");
       expect(typeof entry.config.streamSimple).toBe("function");
+      const usage = entry.config.usage as {
+        id: string;
+        validatesCredentials: boolean;
+        fetchUsage: unknown;
+      };
+      expect(usage.id).toBe(PROVIDER_ID);
+      expect(usage.validatesCredentials).toBe(false);
+      expect(typeof usage.fetchUsage).toBe("function");
       expect(Array.isArray(entry.config.models)).toBe(true);
       expect((entry.config.models as unknown[]).length).toBeGreaterThan(0);
     }
@@ -86,7 +94,62 @@ describe("extension registration", () => {
     expect(typeof pi.handlers.session_shutdown).toBe("function");
     expect(typeof pi.handlers.session_compact).toBe("function");
     expect(typeof pi.handlers.session_tree).toBe("function");
+    expect(typeof pi.handlers.session_stop).toBe("function");
   });
+
+  test.each(["print", "json", "tui"])(
+    "session_stop invalidates bridge usage and awaits reports in %s mode",
+    async (mode) => {
+      const pi = makeFakePi();
+      load(pi);
+      const calls: string[] = [];
+      const report = Promise.withResolvers<void>();
+      const pending = Promise.resolve(pi.handlers.session_stop({}, {
+        mode,
+        model: { provider: PROVIDER_ID },
+        modelRegistry: { authStorage: { usage: {
+          invalidate(provider: string) { calls.push(`invalidate:${provider}`); },
+          reports() { calls.push("reports"); return report.promise; },
+        } } },
+      }));
+      let finished = false;
+      void pending.then(() => { finished = true; });
+      await Promise.resolve();
+      expect(calls).toEqual([`invalidate:${PROVIDER_ID}`, "reports"]);
+      expect(finished).toBe(false);
+      report.resolve();
+      await pending;
+      expect(finished).toBe(true);
+    },
+  );
+
+  test.each([{ provider: "anthropic" }, undefined])(
+    "session_stop skips usage refresh for a non-bridge or absent model",
+    async (model) => {
+      const pi = makeFakePi();
+      load(pi);
+      // No registry is needed when the selected model is not the bridge.
+      await pi.handlers.session_stop({}, { model });
+    },
+  );
+
+  test.each(["invalidate", "reports"])(
+    "session_stop contains a usage %s failure",
+    async (failingMethod) => {
+      const pi = makeFakePi();
+      load(pi);
+      const pending = pi.handlers.session_stop({}, {
+        model: { provider: PROVIDER_ID },
+        modelRegistry: { authStorage: { usage: {
+          invalidate() {
+            if (failingMethod === "invalidate") throw new Error("usage unavailable");
+          },
+          async reports() { throw new Error("usage unavailable"); },
+        } } },
+      });
+      expect(await pending).toBeUndefined();
+    },
+  );
 
   test("session_start caches the system prompt, sets ui, clears the store", () => {
     const pi = makeFakePi();

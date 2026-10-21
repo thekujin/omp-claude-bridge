@@ -101,6 +101,8 @@ Pick any of these from `/model`. Each model has one picker entry; models request
 
 Registered context windows follow these runtime requests, so OMP's status bar and compaction threshold match the requested window. The underlying catalog records 1M for all models except Haiku 4.5 (200K); Opus 4.6 and Sonnet 4.6 are adjusted at registration according to the settings above. Subscription entitlement can still affect the window actually served.
 
+After each bridge turn, the extension refreshes OMP's usage snapshots in TUI, print, and JSON modes. Its independent usage query enables the required Claude Code usage endpoint without changing normal model queries. Subscription limits appear only when that API supplies them; an unavailable usage report does not fail the turn.
+
 The catalog also supplies the following cost metadata (input / output / cache read / cache write, in USD per million tokens). These are model metadata, not a separate charge by the extension; authentication and billing remain with Claude Code.
 
 | Models | Input | Output | Cache read | Cache write |

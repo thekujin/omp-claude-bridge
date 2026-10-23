@@ -25,7 +25,8 @@ export class QueryContext {
   deferredUserMessages: string[] = [];
 
   // Per-turn (reset together)
-  turnOutput: AssistantMessage | null = null;
+  turnOutput: (AssistantMessage & { duration?: number; ttft?: number }) | null =
+    null;
   turnStarted = false;
   turnSawStreamEvent = false;
   turnSawToolCall = false;
@@ -36,7 +37,18 @@ export class QueryContext {
     return this.turnOutput.content;
   }
 
-  resetTurnState(model: Model<any>): void {
+  // SDK timestamps omit bridge setup; use one local wall clock, in milliseconds.
+  recordFirstToken(): void {
+    if (this.currentPiStream && this.turnOutput)
+      this.turnOutput.ttft ??= Date.now() - this.turnOutput.timestamp;
+  }
+
+  completeTiming(): void {
+    if (this.turnOutput)
+      this.turnOutput.duration = Date.now() - this.turnOutput.timestamp;
+  }
+
+  resetTurnState(model: Model<any>, startedAt = Date.now()): void {
     this.turnOutput = {
       role: "assistant",
       content: [],
@@ -52,7 +64,7 @@ export class QueryContext {
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
       },
       stopReason: "stop",
-      timestamp: Date.now(),
+      timestamp: startedAt,
     };
     this.turnStarted = false;
     this.turnSawStreamEvent = false;

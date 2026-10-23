@@ -91,6 +91,7 @@ export function createStreamClaudeAgentSdk(
     context: Context,
     options?: SimpleStreamOptions,
   ): AssistantMessageEventStream {
+    const startedAt = Date.now();
     const stream = newAssistantMessageEventStream();
     const sessions = runtime.sessions;
 
@@ -123,7 +124,7 @@ export function createStreamClaudeAgentSdk(
     // --- Tool result delivery ---
     if (resultCtx) {
       claimCurrentPiStream(stream, "tool-result", resultCtx);
-      resultCtx.resetTurnState(model);
+      resultCtx.resetTurnState(model, startedAt);
       debug(
         `provider: tool results, ${allResults.length} results, ${resultCtx.pendingToolCalls.size} waiting handlers, ctx.msgs=${context.messages.length}`,
       );
@@ -189,7 +190,8 @@ export function createStreamClaudeAgentSdk(
       sessions.advanceCursor(context.messages.length);
       const c = ctx();
       queueMicrotask(() => {
-        c.resetTurnState(model);
+        c.resetTurnState(model, startedAt);
+        c.completeTiming();
         stream.push({
           type: "done",
           reason: "stop",
@@ -212,7 +214,7 @@ export function createStreamClaudeAgentSdk(
     queryCtx.pendingToolCalls.clear();
     queryCtx.pendingResults.clear();
     queryCtx.deferredUserMessages = [];
-    queryCtx.resetTurnState(model);
+    queryCtx.resetTurnState(model, startedAt);
     queryCtx.latestCursor = 0;
 
     const { mcpTools, customToolNameToSdk, customToolNameToPi } =
@@ -375,6 +377,7 @@ export function createStreamClaudeAgentSdk(
             queryCtx.turnOutput.errorMessage = "Operation aborted";
           }
           const abortedStream = queryCtx.currentPiStream;
+          if (abortedStream) queryCtx.completeTiming();
           abortedStream?.push({
             type: "error",
             reason: "aborted",
@@ -516,6 +519,7 @@ export function createStreamClaudeAgentSdk(
           queryCtx.activeQuery = null;
         }
         const errorStream = queryCtx.currentPiStream;
+        if (errorStream) queryCtx.completeTiming();
         errorStream?.push({
           type: "error",
           reason: (queryCtx.turnOutput?.stopReason ?? "error") as

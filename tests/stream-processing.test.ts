@@ -253,6 +253,95 @@ describe("finalizeCurrentStream", () => {
   });
 });
 
+describe("turn timing", () => {
+  for (const type of ["text", "thinking", "tool_use"] as const) {
+    test(`${type} stream records first content and terminal timing in milliseconds`, async () => {
+      const { c, events } = newContext();
+      let firstContentBefore = 0;
+      let firstContentAfter = 0;
+      const query = (async function* () {
+        await Bun.sleep(5);
+        if (type === "tool_use") firstContentBefore = Date.now();
+        yield sdk({
+          type: "content_block_start",
+          index: 0,
+          content_block: type === "tool_use"
+            ? { type, id: "timed-tool", name: "Read", input: {} }
+            : { type },
+        });
+        if (type === "tool_use") {
+          firstContentAfter = Date.now();
+        } else {
+          // Empty starts are not tokens; text/thinking timing begins at the delta.
+          expect(c.turnOutput?.ttft).toBeUndefined();
+          await Bun.sleep(10);
+          firstContentBefore = Date.now();
+          yield sdk({
+            type: "content_block_delta",
+            index: 0,
+            delta: type === "text"
+              ? { type: "text_delta", text: "first" }
+              : { type: "thinking_delta", thinking: "first" },
+          });
+          firstContentAfter = Date.now();
+          await Bun.sleep(5);
+          yield sdk({
+            type: "content_block_delta",
+            index: 0,
+            delta: type === "text"
+              ? { type: "text_delta", text: " second" }
+              : { type: "thinking_delta", thinking: " second" },
+          });
+        }
+        // Tool-only streams need timing even without any input_json_delta.
+        await Bun.sleep(5);
+        yield sdk({ type: "content_block_stop", index: 0 });
+        yield sdk({ type: "message_stop" });
+      })() as unknown as Query;
+
+      await consumeQuery(query, new Map(), MODEL, () => false, c);
+      finalizeCurrentStream(c);
+
+      expect(events.at(-1)?.type).toBe("done");
+      const message = events.at(-1)!.message as NonNullable<QueryContext["turnOutput"]>;
+      expect(message.duration).toBeGreaterThan(0);
+      expect(message.ttft).toBeGreaterThan(0);
+      expect(message.ttft!).toBeLessThanOrEqual(message.duration!);
+      expect(message.ttft!).toBeGreaterThanOrEqual(firstContentBefore - message.timestamp);
+      expect(message.ttft!).toBeLessThanOrEqual(firstContentAfter - message.timestamp);
+    });
+  }
+
+  for (const type of ["assistant", "result"] as const) {
+    test(`${type} fallback records emitted content before completion`, async () => {
+      const { c, events } = newContext();
+      let firstContentBefore = 0;
+      let firstContentAfter = 0;
+      const query = (async function* () {
+        await Bun.sleep(5);
+        firstContentBefore = Date.now();
+        yield (type === "assistant"
+          ? { type, message: { content: [{ type: "text", text: "fallback" }] } }
+          : { type, subtype: "success", result: "fallback" }) as unknown as SDKMessage;
+        firstContentAfter = Date.now();
+        await Bun.sleep(5);
+      })() as unknown as Query;
+
+      await consumeQuery(query, new Map(), MODEL, () => false, c);
+      finalizeCurrentStream(c);
+
+      expect(events.some((event) => event.type === "text_delta")).toBe(true);
+      expect(events.at(-1)?.type).toBe("done");
+      const message = events.at(-1)!.message as NonNullable<QueryContext["turnOutput"]>;
+      expect(message.duration).toBeGreaterThan(0);
+      expect(message.ttft).toBeGreaterThan(0);
+      expect(message.ttft!).toBeLessThanOrEqual(message.duration!);
+      expect(message.ttft!).toBeGreaterThanOrEqual(firstContentBefore - message.timestamp);
+      expect(message.ttft!).toBeLessThanOrEqual(firstContentAfter - message.timestamp);
+    });
+  }
+});
+
 describe("claimCurrentPiStream / markStreamComplete", () => {
   test("claims replace the stream reference", () => {
     const { c } = newContext();

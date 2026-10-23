@@ -144,6 +144,7 @@ export function finalizeCurrentStream(
   if (!c.turnStarted) ensureTurnStarted(c);
   const reason = stopReason === "length" ? "length" : "stop";
   const stream = c.currentPiStream;
+  c.completeTiming();
   stream!.push({ type: "done", reason, message: c.turnOutput });
   markStreamComplete(stream);
   stream!.end();
@@ -224,6 +225,7 @@ export function processStreamEvent(
         partialJson: "",
         index: event.index,
       });
+      c.recordFirstToken();
       c.currentPiStream!.push({
         type: "toolcall_start",
         contentIndex: c.turnBlocks.length - 1,
@@ -246,6 +248,7 @@ export function processStreamEvent(
     if (!block) return;
     if (event.delta?.type === "text_delta" && block.type === "text") {
       block.text += event.delta.text;
+      if (event.delta.text) c.recordFirstToken();
       c.currentPiStream!.push({
         type: "text_delta",
         contentIndex: index,
@@ -257,6 +260,7 @@ export function processStreamEvent(
       block.type === "thinking"
     ) {
       block.thinking += event.delta.thinking;
+      if (event.delta.thinking) c.recordFirstToken();
       c.currentPiStream!.push({
         type: "thinking_delta",
         contentIndex: index,
@@ -269,6 +273,7 @@ export function processStreamEvent(
     ) {
       block.partialJson += event.delta.partial_json;
       block.arguments = parsePartialJson(block.partialJson, block.arguments);
+      if (event.delta.partial_json) c.recordFirstToken();
       c.currentPiStream!.push({
         type: "toolcall_delta",
         contentIndex: index,
@@ -337,6 +342,7 @@ export function processStreamEvent(
   if (event?.type === "message_stop" && c.turnSawToolCall) {
     c.turnOutput.stopReason = "toolUse";
     const stream = c.currentPiStream;
+    c.completeTiming();
     stream!.push({
       type: "done",
       reason: "toolUse",
@@ -393,6 +399,7 @@ export function processAssistantMessage(
         contentIndex: idx,
         partial: c.turnOutput,
       });
+      c.recordFirstToken();
       c.currentPiStream?.push({
         type: "text_delta",
         contentIndex: idx,
@@ -418,13 +425,15 @@ export function processAssistantMessage(
         contentIndex: idx,
         partial: c.turnOutput,
       });
-      if (block.thinking)
+      if (block.thinking) {
+        c.recordFirstToken();
         c.currentPiStream?.push({
           type: "thinking_delta",
           contentIndex: idx,
           delta: block.thinking,
           partial: c.turnOutput,
         });
+      }
       c.currentPiStream?.push({
         type: "thinking_end",
         contentIndex: idx,
@@ -447,6 +456,7 @@ export function processAssistantMessage(
       });
       const idx = c.turnBlocks.length - 1;
       const toolBlock = c.turnBlocks[idx];
+      c.recordFirstToken();
       c.currentPiStream?.push({
         type: "toolcall_start",
         contentIndex: idx,
@@ -468,6 +478,7 @@ export function processAssistantMessage(
   if (c.turnSawToolCall && c.currentPiStream && c.turnOutput) {
     c.turnOutput.stopReason = "toolUse";
     const stream = c.currentPiStream;
+    c.completeTiming();
     stream.push({
       type: "done",
       reason: "toolUse",
@@ -517,6 +528,7 @@ export async function consumeQuery(
             contentIndex: idx,
             partial: queryCtx.turnOutput,
           });
+          if (text) queryCtx.recordFirstToken();
           queryCtx.currentPiStream?.push({
             type: "text_delta",
             contentIndex: idx,
